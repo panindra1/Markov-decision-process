@@ -6,47 +6,62 @@ import java.io.*;
 public class EnvironmentReader {
     BufferedReader br;
     File environmentFile;
-    Integer[][] environment;
+    Environment environment;
     int length, width;
+    int startX = 0;
+    int startY = 0;
 
 
-    public EnvironmentReader(File file) throws FileNotFoundException {
+    public EnvironmentReader(File file) throws IOException {
         init(file);
     }
 
-    private void init(File file) throws FileNotFoundException {
+    private void init(File file) throws IOException {
         this.environmentFile = file;
         br = new BufferedReader(new FileReader(environmentFile));
+        getDimensions();
+        read();
     }
 
     private void read() throws IOException {
-        br.reset();
-        environment = new Integer[length][width];
+        Cell[][] environmentCells;
+        br = new BufferedReader(new FileReader(environmentFile));
+        environmentCells = new Cell[length][width];
         for(int i = 0 ; i < length ; i ++)
         {
+            environmentCells[i] = new Cell[width];
             String line = br.readLine();
             for(int j = 0 ; j < width ; j ++)
             {
-                char character = line.charAt(0);
+                char character = line.charAt(j);
                 if(character == '%')
                 {
-                    environment[i][j] = Integer.MIN_VALUE;
+                    environmentCells[i][j] = new Cell(CellType.WALL, null, 0f);
                 }
                 else if(character == ' ')
                 {
-                    environment[i][j] = 0;
+                    environmentCells[i][j] = new Cell(CellType.BLANK, null, 0f);
                 }
-                else
+                else if(character == 'R')
                 {
-                    environment[i][j] = Integer.parseInt(Character.toString(character));
+                    environmentCells[i][j] = new Cell(CellType.REWARD, null, CellType.REWARD.value);
+                }
+                else if(character == 'P')
+                {
+                    environmentCells[i][j] = new Cell(CellType.PENALTY, null, CellType.PENALTY.value);
+                }
+                else if(character == 'S')
+                {
+                    startX = j;
+                    startY = i;
+                    environmentCells[i][j] = new Cell(CellType.BLANK, null, 0f);
                 }
             }
         }
-
+        environment = new Environment(environmentCells);
     }
 
     private void getDimensions() throws IOException {
-        br.reset();
         String line = br.readLine();
         width = line.length();
         int i = 1;
@@ -55,7 +70,13 @@ public class EnvironmentReader {
             i ++;
         }
         length = i;
+        System.out.println("Width : " + width);
+        System.out.println("Length : " + length);
     }
 
+    public Environment getEnvironment()
+    {
+        return environment;
+    }
 
 }
