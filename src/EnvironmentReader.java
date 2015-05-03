@@ -6,7 +6,7 @@ import java.io.*;
 public class EnvironmentReader {
     BufferedReader br;
     File environmentFile;
-    Integer[][] environment;
+    Double[][] environment;
     int length, width;
     int startX, startY;
 
@@ -34,11 +34,11 @@ public class EnvironmentReader {
         this.width = width;
     }
     
-    public Integer[][] getEnvironment() {
+    public Double[][] getEnvironment() {
         return environment;
     }
 
-    public void setEnvironment(Integer[][] environment) {
+    public void setEnvironment(Double[][] environment) {
         this.environment = environment;
     }
     
@@ -57,33 +57,33 @@ public class EnvironmentReader {
 
 private void read() throws IOException {
     br = new BufferedReader(new FileReader(environmentFile));
-    environment = new Integer[length][width];
+    environment = new Double[length][width];
     for(int i = 0 ; i < length ; i ++)
     {
-        environment[i] = new Integer[width];
+        environment[i] = new Double[width];
         String line = br.readLine();
         for(int j = 0 ; j < width ; j ++)
         {
             char character = line.charAt(j);
             if(character == '%')
             {
-                environment[i][j] = Integer.MIN_VALUE;
+                environment[i][j] = Double.MIN_VALUE;
             }
             else if(character == ' ')
             {
-                environment[i][j] = 0;
+                environment[i][j] = -0.04;
             }
             else if(character == 'R')
             {
-                environment[i][j] = 1;
+                environment[i][j] = 1.0;
             }
             else if(character == 'P')
             {
-                environment[i][j] = -1;
+                environment[i][j] = -1.0;
             }
             else if(character == 'S')
             {
-                environment[i][j] = 0;
+                environment[i][j] = -0.04;
                 startX = j;
                 startY = i;
             }

@@ -12,13 +12,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  *
  * @author panindra
  */
 
-enum Action{UP, DOWN, RIGHT, LEFT};
+enum Action{UP, LEFT, RIGHT, DOWN};
 
 
 class State {
@@ -28,8 +29,7 @@ class State {
     float left;
     float up;
     float down;
-    float maxVal;
-    boolean isterminal;
+    double maxVal;    
     boolean iswall;
 }
 
@@ -41,27 +41,23 @@ class UtilityValues {
 public class MarkovDecisionProcess {
     static double mReward = -0.04;
     static int mTValue = 0;
-    static Integer[][] mInput = null;
+    static Double[][] mInput = null;
     static double mAlpha = 0.0;
     static double mGamma = 0.99;
     static Integer mRPlus = 1;
-    static double mThresholdAction = 2.0;
+    static double mThresholdAction = 1.0;
         
     static State[][] mTotalStates = null;
-    static Map<State, ArrayList<Integer>> mQMap = new HashMap<>();    
-    static Map<State, ArrayList<Integer>> mNsaMap = new HashMap<>();
+    static Map<State, ArrayList<Double>> mQMap = new HashMap<>();    
+    static Map<State, ArrayList<Double>> mNsaMap = new HashMap<>();
    
     static State mPreviousState = null;
-    static Action mPrevousAction = Action.LEFT;
+    static Action mPrevousAction = null;
     static double mPreviousReward = 0.0;
     
     static int inputLen = 0;
     static int inputWidth = 0;
-    
-    //Formula
-    //Q(s, a) ← Q(s, a) + α (R(s) + γ max a ' Q(s' , a' ) − Q(s, a))
-
-    
+      
     /**
      * @param args the command line arguments
      */
@@ -75,10 +71,10 @@ public class MarkovDecisionProcess {
         
         mInput = env.getEnvironment();    
         
-        mTotalStates = new State[env.getLength()][env.getWidth()];
+        mTotalStates = new State[inputLen][inputWidth];
         
-        for(int i = 0; i < env.getLength(); i++) {
-            for(int j = 0; j< env.getWidth(); j++) {                            
+        for(int i = 0; i < inputLen; i++) {
+            for(int j = 0; j< inputWidth; j++) {                            
                 State s = new State();
                 s.i = i;
                 s.j = j;
@@ -86,24 +82,42 @@ public class MarkovDecisionProcess {
                 s.down = 0;
                 s.right = 0;
                 s.left = 0;
-                
-                if(mInput[i][j] == 1 || mInput[i][j] == -1)
-                    s.isterminal = true;
-                else
-                    s.isterminal = false;
-                
+                s.maxVal = 0;
+                               
                 if(mInput[i][j] == Integer.MIN_VALUE)
                     s.iswall = true;
                 else
                     s.iswall = false;
                 
-                ArrayList<Integer> listValues = new ArrayList<>();
-                listValues.add(0);
-                listValues.add(0);
-                listValues.add(0);
-                listValues.add(0);
+                ArrayList<Double> listValues = new ArrayList<>();
+                if( (i- 1) < 0 || (mInput[i - 1][j] == Double.MIN_VALUE))
+                    listValues.add(-100.0);
+                else
+                    listValues.add(0.0);
                 
+                if(( j  - 1) < 0 || (mInput[i][j - 1] == Double.MIN_VALUE))
+                    listValues.add(-100.0);
+                else
+                    listValues.add(0.0);
+                
+                if(( j  + 1) > inputLen - 1 ||  (mInput[i][j + 1] == Double.MIN_VALUE))
+                    listValues.add(-100.0);
+                else
+                    listValues.add(0.0);
+                
+                if(( i  + 1) > inputWidth - 1 || (mInput[i + 1][j] == Double.MIN_VALUE))
+                    listValues.add(-100.0);
+                else
+                    listValues.add(0.0);
+                                
                 mQMap.put(s, listValues);
+                
+                listValues = new ArrayList<>();
+                listValues.add(0.0);
+                listValues.add(0.0);
+                listValues.add(0.0);
+                listValues.add(0.0);
+                
                 mNsaMap.put(s, listValues);
                         
                 mTotalStates[i][j] = s;
@@ -112,8 +126,12 @@ public class MarkovDecisionProcess {
         int i = env.getStartY();
         int j = env.getStartX();
         
-        mPreviousState = mTotalStates[i][j];        
-        Action action = computeQlearning(mTotalStates[i][j], mInput[j][j]);
+        mPreviousState = mTotalStates[i][j- 1];
+        mPrevousAction = Action.RIGHT;
+        Action action = computeQlearning(mTotalStates[i][j], mInput[i][j]);
+        System.out.println("Current state = "  + i + ", " + j);
+        System.out.println("Action = " + action);
+        
         int num = 1000;
         
         while(num > 0) {
@@ -130,12 +148,10 @@ public class MarkovDecisionProcess {
                 i = i + 1;
             }
             
-            if(i >=0 && i <= inputLen && j >= 0 && j <= inputWidth ){
-           
-                action = computeQlearning(mTotalStates[i][j], mInput[j][j]);
+            if(i >=0 && i <= inputLen && j >= 0 && j <= inputWidth ){           
+                action = computeQlearning(mTotalStates[i][j], mInput[i][j]);
                 System.out.println("Current state = "  + i + ", " + j);
                 System.out.println("Action = " + action);
-                
             }
             num--;
         }
@@ -144,40 +160,29 @@ public class MarkovDecisionProcess {
     
     static Action computeQlearning(State currState, double currReward) {
         mTValue++;
-        mAlpha  =  60/(59 + mTValue);
-        
-        if(currState.isterminal) {
-            UtilityValues uv = new UtilityValues();
-            uv.action = null;
-            uv.state = currState;
+        mAlpha  =  60.0/(59 + mTValue);
             
-        }
         if(currState != null) {
             if(mNsaMap.containsKey(mPreviousState)) {
-                ArrayList<Integer> listValues = mNsaMap.get(mPreviousState);
+                ArrayList<Double> listValues = mNsaMap.get(mPreviousState);
                 if(mPrevousAction!= null) {
-                    int val = listValues.get(mPrevousAction.ordinal());
+                    double val = listValues.get(mPrevousAction.ordinal());
                     val += 1;
                     listValues.set(mPrevousAction.ordinal(), val);                
                     mNsaMap.put(mPreviousState, listValues);
                 }
-            }            
-                
-            UtilityValues uv = new UtilityValues();
-            uv.action = mPrevousAction;
-            uv.state = mPreviousState;
-            
+            }                        
+           
             if(mQMap.containsKey(currState)) {
                 if(mPrevousAction!= null) {
-                    ArrayList<Integer> listValues = mQMap.get(currState);
-                    int val = listValues.get(mPrevousAction.ordinal());
-                    listValues.set(mPrevousAction.ordinal(), val);
-
-                    double term2_1 = mQMap.get(uv.state).get(val) +  mAlpha * mNsaMap.get(mPreviousState).get(mPrevousAction.ordinal()) ;
-                    double term2_2 = mPreviousReward + (mGamma * giveMax(currState) - mQMap.get(uv.state).get(val));
-
-                    listValues = mQMap.get(uv.state);
-                    listValues.set(mPrevousAction.ordinal(), (int)(term2_1 + term2_2));
+                    ArrayList<Double> listValues = mQMap.get(mPreviousState);
+            
+                    double term2_1 = mQMap.get(mPreviousState).get(mPrevousAction.ordinal());
+                    double term2_2 = mAlpha * mNsaMap.get(mPreviousState).get(mPrevousAction.ordinal()) * (mPreviousReward + (mGamma * giveMax(currState) - mQMap.get(mPreviousState).get(mPrevousAction.ordinal())));
+                    
+                    listValues.set(mPrevousAction.ordinal(), (term2_1 + term2_2));
+                    mPreviousState.maxVal = Collections.max(listValues);
+                    
                     mQMap.put(mPreviousState, listValues);
 
                     mPreviousState = currState;
@@ -193,79 +198,88 @@ public class MarkovDecisionProcess {
     
     static Action giveMaxAction(State currState) {
         int a = 0;
-        ArrayList<Integer> thresholdAction = mNsaMap.get(currState);
-        ArrayList<Integer> utilityValues = mQMap.get(currState);
-        int max = Integer.MIN_VALUE;
-        int max_2 = Integer.MIN_VALUE;
+        ArrayList<Double> thresholdAction = mNsaMap.get(currState);
+        ArrayList<Double> utilityValues = mQMap.get(currState);
+        double max = Double.MIN_VALUE;        
         
-        int i = 0, index = 0;
-        ArrayList<Integer> indexArr = new ArrayList<>();        
+        //check the result of moving in Action.values()[index] leads to wall        
         
-        for(;i < thresholdAction.size(); i++) {
-            if(thresholdAction.get(i)  < mThresholdAction) {
-                if(mRPlus > max) {                  
-                    max = mRPlus;
-                    index = i;                    
-                }                 
-            }
-            else {
-                if(utilityValues.get(i) > max) {                    
-                    max = utilityValues.get(i);
-                    index = i;
-                }
-            }
-            
-            if(indexArr.isEmpty()) {
-                indexArr.add(i);
-            }
-            else { 
-                boolean inserted = false;
-                int indexArrSize = indexArr.size();
-                
-                for(int k = 0; k < indexArrSize;k++) {
-                    if(utilityValues.get(i) > utilityValues.get(indexArr.get(k))) {
-                        indexArr.add(k, i);
-                        inserted = true;
-                    }
-                }
-                if(!inserted)
-                    indexArr.add(i);
-            }
-        }
+        ArrayList<Double> possibleValues = new ArrayList<>();
+        Map<Action, Double> actionMap = new HashMap<>();
         
-        //check the result of moving in Action.values()[index] leads to wall
         Action returnAction = null;
-        for(int foundIndex = 0; foundIndex < indexArr.size(); foundIndex++) {
-           returnAction = Action.values()[foundIndex];
-
-           int newI = currState.i, newJ = currState.j;
-           if(returnAction.equals(Action.UP)){
-               newI-=1;
+        
+        Map<Action, Double> directionutilityValues = new HashMap<>();
+        
+        for(int foundIndex = 0; foundIndex < utilityValues.size(); foundIndex++) {
+           //Check for the exploration function
+           if(thresholdAction.get(foundIndex)  < mThresholdAction) {                
+               max = mRPlus;                
            }
-           else if(returnAction.equals(Action.DOWN)){
-               newI+=1;
-           }
-           else if(returnAction.equals(Action.LEFT)){
-               newJ-=1;
-           }
-           else if(returnAction.equals(Action.RIGHT)){
-               newJ+=1;
-           }
-           if(newI >=0 && newI <= inputLen && newJ >= 0 && newJ <= inputWidth ){
-               if(mInput[newI][newJ] != '%'){
-                   returnAction = Action.values()[foundIndex];
-                   return returnAction;
-               }
+           else {                
+               max = utilityValues.get(foundIndex);                                    
            }
            
-//           if(returnAction != null)
-//               return returnAction;
+           if(max == -100)
+               max = currState.maxVal;
+           
+           directionutilityValues.put(Action.values()[foundIndex], max);
         }
-        return returnAction;        
+        
+        
+        for(int foundIndex = 0; foundIndex < utilityValues.size(); foundIndex++) {
+            returnAction = Action.values()[foundIndex];
+            possibleValues.add(givePreferredDirectionValues(returnAction, directionutilityValues));                
+        }
+                
+                       
+        //To generate random action
+        double X=((double)Math.random()/(double)1.0);
+      
+        int minIndex = 0;
+        double minVal = Double.MAX_VALUE;        
+        
+        for(int i = 0; i < possibleValues.size(); i++) {
+            //double tempVal = possibleValues.get(i);
+            if((possibleValues.get(i) - X) < minVal) {
+                minVal = possibleValues.get(i) - X;
+                minIndex = i;
+                
+            }
+        }
+                
+        //return Action of MinIndex value
+        return Action.values()[minIndex];
+        
+        
+    }
+    
+    static Double givePreferredDirectionValues(Action action,  Map<Action, Double> directionutilityValues) {
+        double val = 0.0;
+         if(action == Action.UP || action == Action.DOWN) {
+             val = 0.8 * directionutilityValues.get(action) + 0.1 * directionutilityValues.get(Action.LEFT) +  0.1 * directionutilityValues.get(Action.RIGHT) ;             
+         }                       
+        else if(action == Action.LEFT || action == Action.RIGHT) {
+            val = 0.8 * directionutilityValues.get(action) + 0.1 * directionutilityValues.get(Action.UP) +  0.1 * directionutilityValues.get(Action.DOWN) ;             
+        }
+        return val;
+    }
+            
+    static Action giveOppAction(Action action) {
+        Action retAction = Action.UP;
+        if(action == Action.UP)
+            retAction = Action.DOWN;
+        else if(action == Action.DOWN)
+            retAction = Action.UP;
+        else if(action == Action.LEFT)
+            retAction = Action.RIGHT;
+        else if(action == Action.RIGHT)
+            retAction = Action.LEFT;
+        
+        return retAction;
     }
     
     static double giveMax(State state) {
-        int max = Integer.MIN_VALUE;
         ArrayList<Float> vals = new ArrayList<>();
         vals.add(state.up);
         vals.add(state.down);
@@ -273,6 +287,7 @@ public class MarkovDecisionProcess {
         vals.add(state.right);
         
         Collections.sort(vals);
+        Collections.reverse(vals);
         
         return vals.get(0);
     }
