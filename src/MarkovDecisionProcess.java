@@ -47,7 +47,8 @@ public class MarkovDecisionProcess {
     static double mAlpha = 0.0;
     static double mGamma = 0.99;
     static Integer mRPlus = 1;
-    static double mThresholdAction = 1.0;
+    static double mThresholdAction = 10.0;
+    static final float mDelta = 1f;
         
     static State[][] mTotalStates = null;
     static Map<State, ArrayList<Double>> mQMap = new HashMap<>();    
@@ -74,6 +75,7 @@ public class MarkovDecisionProcess {
         mInput = env.getEnvironment();    
         
         mTotalStates = new State[inputLen][inputWidth];
+        
         
         for(int i = 0; i < inputLen; i++) {
             for(int j = 0; j< inputWidth; j++) {                            
@@ -125,11 +127,11 @@ public class MarkovDecisionProcess {
                 mTotalStates[i][j] = s;
             }
         }
-        //int i = env.getStartY();
-        //int j = env.getStartX();
+        int i = env.getStartY();
+        int j = env.getStartX();
         
-        int i = 1;
-        int j = 0;
+        //int i = 1;
+        //int j = 0;
         
         //mPreviousState = mTotalStates[i][j- 1];
         //mPrevousAction = Action.RIGHT;
@@ -142,8 +144,22 @@ public class MarkovDecisionProcess {
         System.out.println("Current state = "  + i + ", " + j);
         System.out.println("Action = " + action);
         
-        int num = 1000;
+        Map<State, ArrayList<Double>> previousStatesMap = new HashMap<State, ArrayList<Double>>();
+        ArrayList<Double> valuesList;
         
+        
+        //deep copy contents of map
+        for (Map.Entry<State, ArrayList<Double>> entry : mQMap.entrySet())
+        {
+        	valuesList = new ArrayList<Double>();
+        	valuesList.addAll(entry.getValue());
+            previousStatesMap.put(entry.getKey(), valuesList);
+            System.out.println(entry.getKey() + " : " + entry.getValue());
+        }
+        
+        
+        int num = 1000;
+        for(int trial = 0; trial < 5000; trial++){
         while(num > 0) {
         	System.out.println("num = " + num);
         	
@@ -164,21 +180,85 @@ public class MarkovDecisionProcess {
             
             if(action==null){
             	action = computeQlearningWithRepeatedState(mTotalStates[i][j], mInput[i][j]);
-                System.out.println("Current state = "  + i + ", " + j);
+                System.out.print("Current state = "  + i + ", " + j + " ");
                 System.out.println("Action = " + action);
                 System.out.println("---------------------------------------");
             }
             
             else if(i >=0 && i <= inputLen && j >= 0 && j <= inputWidth ){           
                 action = computeQlearning(mTotalStates[i][j], mInput[i][j]);
-                System.out.println("Current state = "  + i + ", " + j);
+                System.out.print("Current state = "  + i + ", " + j + " ");
                 System.out.println("Action = " + action);
                 System.out.println("---------------------------------------");
             }
             
             num--;
             
-        }
+        } //end while
+      
+            
+        	boolean isConv = isConvergence(previousStatesMap, mQMap);
+		    System.out.println("isConvergence = " + isConv);
+		    
+		    if(isConv == true){
+		    	break;
+		    }
+		    
+	        System.out.println("----------------------------------------------------");
+	        //mQMap.clear();
+	        //mNsaMap.clear();
+	        
+	        //generate new random start state and  previousAction
+	        int minimum = 0, maximum = 6;
+	        i = minimum + (int)(Math.random()*maximum); 
+	        j = minimum + (int)(Math.random()*maximum);
+	        
+	        //check for walls 
+	        while(mInput[i][j] == Double.MIN_VALUE){
+	        	 i = minimum + (int)(Math.random()*maximum); 
+	             j = minimum + (int)(Math.random()*maximum);
+	        }
+	        
+	        //set the previous state and previous action
+	        if(i-1 >= 0){
+	        	mPreviousState = mTotalStates[i-1][j];
+	        	mPrevousAction = Action.DOWN;
+	        }
+	        else if(j-1 >= 0){
+	        	mPreviousState = mTotalStates[i][j-1];
+	        	mPrevousAction = Action.RIGHT;
+	        }
+	        else if (j+1 < inputLen){
+	        	mPreviousState = mTotalStates[i][j+1];
+	        	mPrevousAction = Action.LEFT;
+	        }
+	        else {
+	        	mPreviousState = mTotalStates[i+1][j];
+	        	mPrevousAction = Action.UP;
+	        }
+	               
+	        Action action1 = computeQlearning(mTotalStates[i][j], mInput[i][j]);
+	        System.out.print("Current state = "  + i + ", " + j + " ");
+	        System.out.println("Action = " + action1);
+	        
+	        }
+
+    }
+    
+    static boolean isConvergence(Map<State, ArrayList<Double>> previousStatesMap, Map<State, ArrayList<Double>> mQMap2){
+    	ArrayList<Double> listValuesForOldStates = new ArrayList<Double>();
+    	ArrayList<Double> listValuesForNewStates = new ArrayList<Double>();
+    	for (Map.Entry<State, ArrayList<Double>> entry : previousStatesMap.entrySet()){
+    		listValuesForOldStates = entry.getValue();
+    		listValuesForNewStates = mQMap2.get(entry.getKey());
+    		for(int indx = 0; indx < listValuesForNewStates.size(); indx++ ){
+    			if(Math.abs((listValuesForNewStates.get(indx) - listValuesForOldStates.get(indx))) > mDelta){
+    				return false;
+    			}
+    		}
+    	}
+		return true;
+    	
     }
     
     
