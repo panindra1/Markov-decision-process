@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import javax.swing.JTable.PrintMode;
+
 /**
  *
  * @author panindra
@@ -123,11 +125,19 @@ public class MarkovDecisionProcess {
                 mTotalStates[i][j] = s;
             }
         }
-        int i = env.getStartY();
-        int j = env.getStartX();
+        //int i = env.getStartY();
+        //int j = env.getStartX();
         
-        mPreviousState = mTotalStates[i][j- 1];
-        mPrevousAction = Action.RIGHT;
+        int i = 1;
+        int j = 0;
+        
+        //mPreviousState = mTotalStates[i][j- 1];
+        //mPrevousAction = Action.RIGHT;
+        
+        
+        mPreviousState = mTotalStates[i-1][j];
+        mPrevousAction = Action.DOWN;
+               
         Action action = computeQlearning(mTotalStates[i][j], mInput[i][j]);
         System.out.println("Current state = "  + i + ", " + j);
         System.out.println("Action = " + action);
@@ -135,11 +145,15 @@ public class MarkovDecisionProcess {
         int num = 1000;
         
         while(num > 0) {
+        	System.out.println("num = " + num);
+        	
             if(action == Action.LEFT) {
                 j = j - 1;
+                
             }
             else if(action == Action.RIGHT) {
                 j = j + 1;
+                
             }
             else if(action == Action.UP) {
                 i = i - 1;
@@ -148,12 +162,22 @@ public class MarkovDecisionProcess {
                 i = i + 1;
             }
             
-            if(i >=0 && i <= inputLen && j >= 0 && j <= inputWidth ){           
+            if(action==null){
+            	action = computeQlearningWithRepeatedState(mTotalStates[i][j], mInput[i][j]);
+                System.out.println("Current state = "  + i + ", " + j);
+                System.out.println("Action = " + action);
+                System.out.println("---------------------------------------");
+            }
+            
+            else if(i >=0 && i <= inputLen && j >= 0 && j <= inputWidth ){           
                 action = computeQlearning(mTotalStates[i][j], mInput[i][j]);
                 System.out.println("Current state = "  + i + ", " + j);
                 System.out.println("Action = " + action);
+                System.out.println("---------------------------------------");
             }
+            
             num--;
+            
         }
     }
     
@@ -161,6 +185,7 @@ public class MarkovDecisionProcess {
     static Action computeQlearning(State currState, double currReward) {
         mTValue++;
         mAlpha  =  60.0/(59 + mTValue);
+        Action retAction = null;
             
         if(currState != null) {
             if(mNsaMap.containsKey(mPreviousState)) {
@@ -180,20 +205,73 @@ public class MarkovDecisionProcess {
                     double term2_1 = mQMap.get(mPreviousState).get(mPrevousAction.ordinal());
                     double term2_2 = mAlpha * mNsaMap.get(mPreviousState).get(mPrevousAction.ordinal()) * (mPreviousReward + (mGamma * giveMax(currState) - mQMap.get(mPreviousState).get(mPrevousAction.ordinal())));
                     
+                    //System.out.println("(term2_1 + term2_2) = " + (term2_1 + term2_2));
                     listValues.set(mPrevousAction.ordinal(), (term2_1 + term2_2));
                     mPreviousState.maxVal = Collections.max(listValues);
                     
                     mQMap.put(mPreviousState, listValues);
 
-                    mPreviousState = currState;
-                    mPreviousReward = currReward;
-                    mPrevousAction = giveMaxAction(currState);
+                     
+                   retAction = giveMaxAction(currState);
+                   
+                    if(retAction != null){
+                    	 mPreviousState = currState;
+                         mPreviousReward = currReward;
+                         mPrevousAction = retAction;
+                    }
                 }
             }        
         }
         
-        return mPrevousAction;
+        return retAction;
     }
+ 
+    static Action computeQlearningWithRepeatedState(State currState, double currReward) {
+        mTValue++;
+        mAlpha  =  60.0/(59 + mTValue);
+        Action retAction = null;
+        
+        State tempPrevState = currState;
+        
+        if(currState != null) {
+            if(mNsaMap.containsKey(tempPrevState)) {
+                ArrayList<Double> listValues = mNsaMap.get(tempPrevState);
+                if(mPrevousAction!= null) {
+                    double val = listValues.get(mPrevousAction.ordinal());
+                    val += 1;
+                    listValues.set(mPrevousAction.ordinal(), val);                
+                    mNsaMap.put(tempPrevState, listValues);
+                }
+            }                        
+           
+            if(mQMap.containsKey(currState)) {
+                if(mPrevousAction!= null) {
+                    ArrayList<Double> listValues = mQMap.get(tempPrevState);
+            
+                    double term2_1 = mQMap.get(tempPrevState).get(mPrevousAction.ordinal());
+                    double term2_2 = mAlpha * mNsaMap.get(tempPrevState).get(mPrevousAction.ordinal()) * (mPreviousReward + (mGamma * giveMax(currState) - mQMap.get(tempPrevState).get(mPrevousAction.ordinal())));
+                    
+                    //System.out.println("(term2_1 + term2_2) = " + (term2_1 + term2_2));
+                    listValues.set(mPrevousAction.ordinal(), (term2_1 + term2_2));
+                    tempPrevState.maxVal += Collections.max(listValues);
+                    
+                    mQMap.put(tempPrevState, listValues);
+
+                     
+                   retAction = giveMaxAction(currState);
+                   
+                    if(retAction != null){
+                    	 mPreviousState = currState;
+                         mPreviousReward = currReward;
+                         mPrevousAction = retAction;
+                    }
+                }
+            }        
+        }
+        
+        return retAction;
+    }
+ 
     
     
     static Action giveMaxAction(State currState) {
@@ -232,6 +310,7 @@ public class MarkovDecisionProcess {
             possibleValues.add(givePreferredDirectionValues(returnAction, directionutilityValues));                
         }
                 
+        //System.out.println("--" + "\n" + possibleValues);
                        
         //To generate random action
         double X=((double)Math.random()/(double)1.0);
@@ -247,9 +326,36 @@ public class MarkovDecisionProcess {
                 
             }
         }
+        
+        //System.out.println("MinIndex = " + minIndex);
+        Action retAction = Action.values()[minIndex];
+        
+        //System.out.println("X = " + X);
+        int i = currState.i, j = currState.j;
+        if(retAction == Action.UP){
+        	i = i-1;
+        }
+        else if (retAction == Action.DOWN){
+        	i = i+1;
+        }
+        else if (retAction == Action.LEFT){
+        	j = j-1;
+        }
+        else if (retAction == Action.RIGHT){
+        	j = j+1;
+        }
+        
+        if(i>=0 && i<inputLen && j>=0 && j<inputWidth){
                 
-        //return Action of MinIndex value
-        return Action.values()[minIndex];
+	        //return Action of MinIndex value
+        	mPreviousState = currState;
+	        return Action.values()[minIndex];
+        }
+        
+        else {
+        	
+        	return null;
+        }
         
         
     }
